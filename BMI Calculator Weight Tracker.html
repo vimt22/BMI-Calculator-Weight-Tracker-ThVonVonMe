@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMI Calculator Weight Tracker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #222;
+            color: white;
+            flex-direction: column;
+        }
+
+        .container {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        input, select {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin-top: 20px;
+            background-color: #e91e63;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+
+        button:hover {
+            background-color: #c2185b;
+        }
+
+        .result, .history, .trend, .advice, .goal, .calories, .reminder {
+            margin-top: 20px;
+        }
+        
+        .tab {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .tab button {
+            background-color: #555;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 0 5px;
+        }
+        
+        .tab button.active {
+            background-color: #e91e63;
+        }
+        
+        .tabcontent {
+            display: none;
+        }
+        
+        .tabcontent.active {
+            display: block;
+        }
+
+        #trendChart {
+            width: 100%;
+            max-width: 500px;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BMI Calculator Weight Tracker</h1>
+        
+        <div class="tab">
+            <button class="tablinks" onclick="openTab(event, 'Standard')">Standard</button>
+            <button class="tablinks" onclick="openTab(event, 'Metric')">Metric</button>
+        </div>
+        
+        <div id="Standard" class="tabcontent">
+            <label for="gender">Gender</label>
+            <select id="genderStandard">
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+            </select>
+            
+            <label for="ageStandard">Age (years)</label>
+            <input type="number" id="ageStandard" placeholder="Years">
+            
+            <label for="heightFeet">Height (feet)</label>
+            <input type="number" id="heightFeet" placeholder="Feet">
+            <label for="heightInches">Height (inches)</label>
+            <input type="number" id="heightInches" placeholder="Inches">
+            
+            <label for="weightPounds">Weight (pounds)</label>
+            <input type="number" id="weightPounds" placeholder="Pounds">
+        </div>
+
+        <div id="Metric" class="tabcontent">
+            <label for="gender">Gender</label>
+            <select id="genderMetric">
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+            </select>
+            
+            <label for="ageMetric">Age (years)</label>
+            <input type="number" id="ageMetric" placeholder="Years">
+            
+            <label for="heightCm">Height (cm)</label>
+            <input type="number" id="heightCm" placeholder="Centimeters">
+            
+            <label for="weightKg">Weight (kg)</label>
+            <input type="number" id="weightKg" placeholder="Kilograms">
+        </div>
+
+        <button onclick="calculateBMI()">Calculate</button>
+
+        <div class="result">
+            <p id="bmiResult">Body Mass Index: N/A</p>
+            <p id="category">Category: N/A</p>
+            <p id="details">Details: N/A</p>
+        </div>
+
+        <div class="goal">
+            <h3>Set BMI Goal</h3>
+            <input type="number" id="bmiGoal" placeholder="Enter your BMI goal">
+            <button onclick="setBMIGoal()">Set Goal</button>
+            <p id="goalProgress"></p>
+        </div>
+
+        <div class="advice">
+            <h3>Health Advice</h3>
+            <p id="healthAdvice"></p>
+        </div>
+
+        <div class="calories">
+            <h3>Daily Calorie Recommendation</h3>
+            <p id="calorieRecommendation"></p>
+        </div>
+
+        <div class="history">
+            <h3>BMI History</h3>
+            <ul id="bmiHistory"></ul>
+        </div>
+
+        <div class="trend">
+            <h3>BMI Trend</h3>
+            <canvas id="trendChart"></canvas>
+        </div>
+
+        <div class="reminder">
+            <h3>BMI Check Reminder</h3>
+            <p id="reminderStatus"></p>
+        </div>
+    </div>
+
+    <script>
+        let bmiHistory = JSON.parse(localStorage.getItem('bmiHistory')) || [];
+        let bmiGoal = localStorage.getItem('bmiGoal') || null;
+        let chart;
+
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+
+        function calculateBMI() {
+            let height, weight, bmi, gender, age;
+
+            if (document.getElementById('Standard').style.display === 'block') {
+                gender = document.getElementById('genderStandard').value;
+                age = document.getElementById('ageStandard').value;
+                const heightFeet = parseFloat(document.getElementById('heightFeet').value);
+                const heightInches = parseFloat(document.getElementById('heightInches').value);
+                weight = parseFloat(document.getElementById('weightPounds').value);
+
+                height = (heightFeet * 12) + heightInches; // convert feet and inches to inches
+                height = height * 0.0254; // convert inches to meters
+                weight = weight * 0.453592; // convert pounds to kg
+            } else {
+                gender = document.getElementById('genderMetric').value;
+                age = document.getElementById('ageMetric').value;
+                height = parseFloat(document.getElementById('heightCm').value) / 100; // convert cm to meters
+                weight = parseFloat(document.getElementById('weightKg').value);
+            }
+
+            bmi = weight / (height * height);
+            document.getElementById('bmiResult').textContent = `Body Mass Index: ${bmi.toFixed(2)} kg/m²`;
+
+            let category;
+            if (bmi < 18.5) {
+                category = "Underweight";
+            } else if (bmi < 24.9) {
+                category = "Normal weight";
+            } else if (bmi < 29.9) {
+                category = "Overweight";
+            } else {
+                category = "Obesity";
+            }
+            document.getElementById('category').textContent = `Category: ${category}`;
+            document.getElementById('details').textContent = `Gender: ${gender}, Age: ${age}`;
+
+            // Save to history
+            bmiHistory.push({date: new Date(), bmi: bmi, weight: weight});
+            localStorage.setItem('bmiHistory', JSON.stringify(bmiHistory));
+
+            // Update history display
+            updateHistoryDisplay();
+
+            // Update trend chart
+            updateTrendChart();
+
+            // Provide health advice
+            provideHealthAdvice(bmi);
+
+            // Calculate calorie recommendation
+            calculateCalories(gender, age, height, weight);
+
+            // Update goal progress
+            updateGoalProgress(bmi);
+
+            // Set reminder
+            setReminder();
+        }
+
+        function updateHistoryDisplay() {
+            const historyList = document.getElementById('bmiHistory');
+            historyList.innerHTML = '';
+            bmiHistory.slice(-5).forEach(entry => {
+                const li = document.createElement('li');
+                li.textContent = `${new Date(entry.date).toLocaleDateString()}: BMI ${entry.bmi.toFixed(2)}, Weight: ${entry.weight.toFixed(1)} kg`;
+                historyList.appendChild(li);
+            });
+        }
+
+        function updateTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            const labels = bmiHistory.map(entry => new Date(entry.date).toLocaleDateString());
+            const data = bmiHistory.map(entry => entry.bmi);
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'BMI Trend',
+                        data: data,
+                        borderColor: 'rgb(75, 192, 192)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+
+        function provideHealthAdvice(bmi) {
+            let advice = '';
+            if (bmi < 18.5) {
+                advice = 'You are underweight. Consider increasing your calorie intake with nutrient-dense foods.';
+            } else if (bmi < 24.9) {
+                advice = 'You have a normal weight. Maintain a balanced diet and regular exercise.';
+            } else if (bmi < 29.9) {
+                advice = 'You are overweight. Focus on a balanced diet and increase physical activity.';
+            } else {
+                advice = 'You are in the obesity category. Consult with a healthcare professional for a personalized plan.';
+            }
+            document.getElementById('healthAdvice').textContent = advice;
+        }
+
+        function calculateCalories(gender, age, height, weight) {
+            let bmr;
+            if (gender === 'male') {
+                bmr = 88.362 + (13.397 * weight) + (4.799 * height * 100) - (5.677 * age);
+            } else {
+                bmr = 447.593 + (9.247 * weight) + (3.098 * height * 100) - (4.330 * age);
+            }
+            const calories = Math.round(bmr * 1.2); // Assuming sedentary lifestyle
+            document.getElementById('calorieRecommendation').textContent = `Recommended daily calorie intake: ${calories} calories`;
+        }
+
+        function setBMIGoal() {
+            bmiGoal = parseFloat(document.getElementById('bmiGoal').value);
+            localStorage.setItem('bmiGoal', bmiGoal);
+            updateGoalProgress(bmiHistory[bmiHistory.length - 1].bmi);
+        }
+
+        function updateGoalProgress(currentBMI) {
+            if (bmiGoal) {
+                const progress = ((currentBMI - bmiHistory[0].bmi) / (bmiGoal - bmiHistory[0].bmi)) * 100;
+                document.getElementById('goalProgress').textContent = `Progress towards goal: ${Math.round(progress)}%`;
+            }
+        }
+
+        function setReminder() {
+            if (Notification.permission !== "granted") {
+                Notification.requestPermission().then(function (permission) {
+                    if (permission === "granted") {
+                        scheduleNotification();
+                    }
+                });
+            } else {
+                scheduleNotification();
+            }
+        }
+
+        function scheduleNotification() {
+            document.getElementById('reminderStatus').textContent = 'Reminder set for 1 week from now.';
+            setTimeout(() => {
+                new Notification("BMI Reminder", {
+                    body: "It's time to check your BMI again!",
+                    icon: "https://via.placeholder.com/64"  //
+                });
+                document.getElementById('reminderStatus').textContent = 'Reminder sent! Calculate your BMI again.';
+            }, 7 * 24 * 60 * 60 * 1000); // Set reminder for 1 week later
+        }
+
+        // Initialize with the first tab open and load history
+        document.querySelector('.tablinks').click();
+        updateHistoryDisplay();
+        updateTrendChart();
+
+        // Load BMI goal if exists
+        if (bmiGoal) {
+            document.getElementById('bmiGoal').value = bmiGoal;
+            updateGoalProgress(bmiHistory[bmiHistory.length - 1].bmi);
+        }
+    </script>
+</body>
+</html>
